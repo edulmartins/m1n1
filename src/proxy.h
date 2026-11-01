@@ -189,6 +189,11 @@ typedef enum {
 
     P_READ_GIGALOCKER = 0x1400,
     P_FREE_GIGALOCKER,
+
+    /* Orchard-local until upstream assigns numbers */
+    P_BOOT_ENTRIES = 0x1500,
+    P_BOOT_ENTRIES_FREE,
+    P_BOOT_START,
 } ProxyOp;
 
 #define S_OK     0

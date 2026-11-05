@@ -936,6 +936,17 @@ static int dt_set_touchscreen(void)
         {"ext-multi-touch-calibration", "apple,z2-ext-cal-blob"},
         {"pressure-effect-correction", "apple,z2-pressure-cal-blob"},
         {"prox-calibration", "apple,z2-prox-cal-blob"},
+        /* iPhone X (hid-transport,k1): the 3D Touch calibrations its firmware loads. */
+        {"luna-force-calibration", "apple,luna-force-calibration"},
+        {"luna-pixel-map", "apple,luna-pixel-map"},
+        {"luna-shape-graffix-calibration", "apple,luna-shape-graffix-calibration"},
+        {"luna-shape-speaker-calibration", "apple,luna-shape-speaker-calibration"},
+        {"luna-shape-soc-calibration", "apple,luna-shape-soc-calibration"},
+        {"luna-shape-receiver-calibration", "apple,luna-shape-receiver-calibration"},
+        {"luna-shape-pmic-calibration", "apple,luna-shape-pmic-calibration"},
+        {"luna-shape-flex-noise", "apple,luna-shape-flex-noise"},
+        {"luna-racer-tmon-comp", "apple,luna-racer-tmon-comp"},
+        {"luna-afe-calibration", "apple,luna-afe-calibration"},
     };
     const char *path = fdt_get_alias(dt, "touchscreen0");
     if (path == NULL)

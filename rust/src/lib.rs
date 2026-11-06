@@ -15,6 +15,8 @@ pub mod adt;
 #[cfg(feature = "chainload")]
 pub mod apfs;
 #[cfg(feature = "chainload")]
+pub mod bls;
+#[cfg(feature = "chainload")]
 pub mod chainload;
 pub mod dlmalloc;
 pub mod float;

@@ -120,13 +120,13 @@ int chainload_load(const char *spec, char **vars, size_t var_cnt)
     size_t size;
     int ret;
 
-    if (!nvme_init()) {
-        printf("chainload: NVME init failed\n");
+    if (!main_storage_init()) {
+        printf("chainload: storage init failed\n");
         return -1;
     }
 
     ret = rust_load_image(spec, &image, &size);
-    nvme_shutdown();
+    main_storage_shutdown();
     if (ret < 0)
         return ret;
 

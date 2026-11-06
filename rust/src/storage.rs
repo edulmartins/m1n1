@@ -56,7 +56,10 @@ impl fatfs::Read for MainStorage {
                 self.lba = Some(lba);
                 let lba = lba + self.offset;
                 if !unsafe { main_storage_read(lba, self.buf.0.as_mut_ptr() as *mut c_void) } {
-                    println!("main_storage_read({}) failed", lba);
+                    println!(
+                        "main_storage_read({}) failed (partition at block {}, byte {})",
+                        lba, self.offset, self.pos
+                    );
                     return Err(());
                 }
             }

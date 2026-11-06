@@ -531,6 +531,7 @@ u64 top_of_memory_alloc(size_t size);
 
 bool main_storage_init(void);
 bool main_storage_read(u64 lba, u64 *bfr);
+bool main_storage_read_blocks(u64 lba, u32 count, void *bfr);
 void main_storage_shutdown(void);
 bool main_storage_flush(void);
 #endif

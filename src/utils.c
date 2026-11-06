@@ -5,6 +5,7 @@
 
 #include "adt.h"
 #include "ans1.h"
+#include "apcie_nvme.h"
 #include "cpu_regs.h"
 #include "iodev.h"
 #include "nvme.h"
@@ -17,6 +18,7 @@
 enum storage_type {
     STORAGE_TYPE_ANS1 = 1,
     STORAGE_TYPE_ANS23,
+    STORAGE_TYPE_APCIE,
 };
 
 bool is_mac;
@@ -305,7 +307,13 @@ bool main_storage_init(void)
     int ans_node = adt_path_offset(adt, "/arm-io/ans");
 
     if (ans_node < 0) {
-        /* A9/A9X/A10/A10X */
+        /* A9/A9X/A10/A10X: ANS is an NVMe endpoint behind apcie */
+        int apcie_node = adt_path_offset(adt, "/arm-io/apcie");
+        if (apcie_node >= 0 && (adt_is_compatible(adt, apcie_node, "apcie,t8010") ||
+                                adt_is_compatible(adt, apcie_node, "apcie,s8003"))) {
+            storage_type = STORAGE_TYPE_APCIE;
+            return apcie_nvme_init();
+        }
         printf("Storage: storage not supported!\n");
         return false;
     }
@@ -329,9 +337,29 @@ bool main_storage_read(u64 lba, u64 *bfr)
             return ans1_read_main_storage(lba, bfr);
         case STORAGE_TYPE_ANS23:
             return nvme_read(1, lba, bfr);
+        case STORAGE_TYPE_APCIE:
+            return apcie_nvme_read(lba, bfr);
         default:
             __builtin_unreachable();
     }
+}
+
+/* count contiguous blocks; one command per chunk where the backend can */
+bool main_storage_read_blocks(u64 lba, u32 count, void *bfr)
+{
+    u32 chunk = storage_type == STORAGE_TYPE_APCIE ? apcie_nvme_max_blocks() : 1;
+    u8 *out = bfr;
+
+    while (count) {
+        u32 n = count < chunk ? count : chunk;
+        bool ok = n > 1 ? apcie_nvme_read_blocks(lba, n, out) : main_storage_read(lba, (u64 *)out);
+        if (!ok)
+            return false;
+        lba += n;
+        out += (u64)n * SZ_4K;
+        count -= n;
+    }
+    return true;
 }
 
 void main_storage_shutdown(void)
@@ -345,6 +373,9 @@ void main_storage_shutdown(void)
             break;
         case STORAGE_TYPE_ANS23:
             nvme_shutdown();
+            break;
+        case STORAGE_TYPE_APCIE:
+            apcie_nvme_shutdown();
             break;
         default:
             __builtin_unreachable();
@@ -362,6 +393,9 @@ bool main_storage_flush(void)
             return true;
         case STORAGE_TYPE_ANS23:
             return nvme_flush(1);
+        case STORAGE_TYPE_APCIE:
+            /* read-only: nothing to flush */
+            return true;
         default:
             __builtin_unreachable();
     }

@@ -490,6 +490,66 @@ static int fdt_set_aux_opp(void *dt, int gpu, const char *prop, const struct aux
     return 0;
 }
 
+/*
+ * PowerVR-derived GPUs (A7-A11): the sgx node's perf-states are
+ * perf-state-count (frequency in Hz, voltage in mV) pairs, state 0 being off.
+ * Fill the GPU's operating-points-v2 table, left empty by the device tree,
+ * with one entry per powered state; opp-level is the state number the GPU's
+ * power controller takes. A table that already has entries is left alone.
+ */
+static int dt_set_gpu_pstates(void *dt)
+{
+    int gpu = fdt_path_offset(dt, "gpu");
+    if (gpu < 0)
+        return 0;
+
+    int len;
+    const fdt32_t *opps_ph = fdt_getprop(dt, gpu, "operating-points-v2", &len);
+    if (!opps_ph || len != 4)
+        return 0;
+
+    int opps = fdt_node_offset_by_phandle(dt, fdt32_ld(opps_ph));
+    if (opps < 0) {
+        printf("FDT: GPU: node for phandle %u not found\n", fdt32_ld(opps_ph));
+        return 0;
+    }
+    if (fdt_first_subnode(dt, opps) >= 0)
+        return 0;
+
+    /* Without the ADT's table the GPU runs at its boot clock: not fatal */
+    u32 count = 0, ps_len = 0;
+    const struct perf_state *ps = NULL;
+    int sgx = adt_path_offset(adt, "/arm-io/sgx");
+    if (sgx >= 0 && ADT_GETPROP(adt, sgx, "perf-state-count", &count) >= 0 && count &&
+        count <= MAX_PSTATES)
+        ps = adt_getprop(adt, sgx, "perf-states", &ps_len);
+    if (!ps || ps_len < count * sizeof(*ps)) {
+        printf("ADT: GPU: no usable perf-states, leaving the GPU's OPP table empty\n");
+        return 0;
+    }
+
+    /* fdt_add_subnode() puts a node before its siblings: fastest first */
+    u32 states = 0;
+    for (int i = count - 1; i > 0; i--) {
+        char name[8];
+
+        if (!ps[i].freq)
+            continue;
+        snprintf(name, sizeof(name), "opp%02d", i);
+        int opp = fdt_add_subnode(dt, opps, name);
+        if (opp < 0)
+            bail("FDT: GPU: failed to add %s\n", name);
+        if (fdt_setprop_u64(dt, opp, "opp-hz", ps[i].freq) ||
+            fdt_setprop_u32(dt, opp, "opp-microvolt", ps[i].volt * 1000) ||
+            fdt_setprop_u32(dt, opp, "opp-level", i))
+            bail("FDT: GPU: failed to fill %s\n", name);
+        states++;
+    }
+
+    printf("FDT: GPU: %u performance states from the ADT\n", states);
+    return 0;
+}
+
 int dt_set_gpu(void *dt)
 {
     bool has_cs_afr = false;
@@ -522,8 +582,7 @@ int dt_set_gpu(void *dt)
             calc_power = calc_power_t600x;
             break;
         default:
-            printf("ADT: GPU: unsupported chip!\n");
-            return 0;
+            return dt_set_gpu_pstates(dt);
     }
 
     int gpu = fdt_path_offset(dt, "gpu");
